@@ -11,7 +11,9 @@ class CompraController extends Controller
     // Obtener todas las compras
     public function index()
     {
-        $compras = Compra::orderByDesc('id')->get();
+        // Se incluye el proveedor para que VerCompra.jsx pueda
+        // mostrar su nombre sin hacer una consulta aparte.
+        $compras = Compra::with('proveedor')->orderByDesc('id')->get();
 
         return response()->json($compras);
     }
@@ -36,7 +38,7 @@ class CompraController extends Controller
     // Obtener una compra específica
     public function show($id)
     {
-        $compra = Compra::findOrFail($id);
+        $compra = Compra::with('proveedor')->findOrFail($id);
 
         return response()->json($compra);
     }

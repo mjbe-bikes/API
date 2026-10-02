@@ -27,6 +27,20 @@ class ClienteController extends Controller
         try {
 
             /*
+             * Si llega id_cliente desde el frontend, buscamos ese
+             * cliente puntual (alias histórico de la clave primaria).
+             */
+            if ($request->filled('id_cliente')) {
+
+                $cliente = Cliente::where(
+                    'id',
+                    $request->query('id_cliente')
+                )->get();
+
+                return response()->json($cliente, 200);
+            }
+
+            /*
              * Si llega usuario_id desde el frontend,
              * buscamos el cliente relacionado.
              */
@@ -106,17 +120,14 @@ class ClienteController extends Controller
             /*
              * Validar los datos recibidos desde React.
              *
-             * usuario_id es opcional porque un cliente puede
-             * ser registrado desde el módulo de ventas sin
-             * tener todavía una cuenta de usuario.
-             *
-             * Si se envía un usuario_id, debe existir en
-             * la tabla usuarios.
+             * Todo cliente debe estar asociado a una cuenta de
+             * usuario ya existente (tabla usuarios). Por eso
+             * usuario_id es obligatorio.
              */
             $datos = $request->validate([
 
                 'usuario_id' =>
-                    'nullable|integer|exists:usuarios,id',
+                    'required|integer|exists:usuarios,id',
 
                 'tipo_documento_id' =>
                     'required|integer|exists:tipos_documentos,id',
@@ -194,13 +205,13 @@ class ClienteController extends Controller
             /*
              * Validar los datos.
              *
-             * usuario_id también es opcional para permitir
-             * actualizar clientes que no tengan usuario asociado.
+             * usuario_id es obligatorio: todo cliente debe estar
+             * asociado a una cuenta de usuario ya existente.
              */
             $datos = $request->validate([
 
                 'usuario_id' =>
-                    'nullable|integer|exists:usuarios,id',
+                    'required|integer|exists:usuarios,id',
 
                 'tipo_documento_id' =>
                     'required|integer|exists:tipos_documentos,id',

@@ -11,7 +11,9 @@ class DetalleCompraController extends Controller
     // Obtener los detalles de las compras
     public function index(Request $request)
     {
-        $query = DetalleCompra::query();
+        // Se incluye el producto para que DetallesCompra.jsx pueda
+        // mostrar su nombre sin hacer una consulta aparte.
+        $query = DetalleCompra::with('producto');
 
         // Si se recibe id_compra, filtrar los detalles
         if ($request->filled('id_compra')) {

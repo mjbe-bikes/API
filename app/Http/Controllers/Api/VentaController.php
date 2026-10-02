@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Venta;
 use App\Models\Cliente;
+use App\Models\DetalleVenta;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class VentaController extends Controller
 {
@@ -119,73 +121,106 @@ class VentaController extends Controller
      *
      * POST /api/ventas
      *
-     * Utilizado por CrearVenta.jsx del módulo de vendedores.
-     *
-     * El frontend envía:
-     *
-     * {
-     *     id_vendedor,
-     *     id_cliente,
-     *     fecha,
-     *     total,
-     *     pago
-     * }
-     *
-     * Los productos se registran posteriormente mediante:
-     *
-     * POST /api/detalles_venta
+     * Utilizado actualmente por CompraCliente.jsx.
      */
     public function store(Request $request)
     {
         try {
 
             /*
-             * Validar exactamente los campos enviados
-             * por CrearVenta.jsx.
+             * Validar los datos enviados por React.
              */
             $datos = $request->validate([
 
-                // Usuario vendedor que realiza la venta.
-                'id_vendedor' =>
-                    'required|integer|exists:usuarios,id',
+                // Usuario que realiza la compra.
+                'user_id' => 'required|integer|exists:usuarios,id',
 
-                // Cliente asociado a la venta.
-                'id_cliente' =>
-                    'required|integer|exists:clientes,id',
+                // ID real de clientes.id.
+                'cliente' => 'required|integer|exists:clientes,id',
 
-                // Fecha de la venta.
-                'fecha' =>
-                    'required|date',
+                // Productos del carrito.
+                'productos' => 'required|array|min:1',
+                'productos.*.id' => 'required|integer|exists:productos,id',
+                'productos.*.cantidad' => 'required|integer|min:1',
+                'productos.*.valor_unitario' => 'required|numeric|min:0',
 
-                // Total calculado por React.
-                'total' =>
-                    'required|numeric|min:0',
+                // Total de la compra.
+                'total' => 'required|numeric|min:0',
 
-                // Estado de pago almacenado en la BD.
-                'pago' =>
-                    'required|boolean',
+                /*
+                 * Se reciben porque forman parte del formulario
+                 * actual del frontend.
+                 *
+                 * No se almacenan porque estas columnas
+                 * no existen en la tabla ventas.
+                 */
+                'direccion' => 'required|string|max:255',
+
+                'metodo_pago' =>
+                    'required|in:efectivo,transferencia,tarjeta,contraentrega',
+
+                /*
+                 * Estados manejados por el frontend.
+                 */
+                'estado' =>
+                    'required|in:pendiente,completada,cancelada',
+
+                // Fecha enviada desde React.
+                'fecha' => 'required|date',
             ]);
 
             /*
-             * Crear la venta utilizando los nombres reales
-             * de las columnas de la tabla ventas.
+             * La BD utiliza el campo "pago" como booleano.
+             *
+             * completada → true
+             * pendiente   → false
+             * cancelada   → false
              */
-            $venta = Venta::create([
-
-                'id_vendedor' => $datos['id_vendedor'],
-
-                'id_cliente' => $datos['id_cliente'],
-
-                'fecha' => $datos['fecha'],
-
-                'total' => $datos['total'],
-
-                'pago' => $datos['pago'],
-            ]);
+            $pago = $datos['estado'] === 'completada';
 
             /*
-             * Cargar las relaciones necesarias después
-             * de crear la venta.
+             * Crear la venta junto con sus detalles dentro de una
+             * transacción: si algo falla, no queda una venta sin
+             * sus productos ni un descuento de stock a medias.
+             *
+             * Actualmente el frontend envía user_id como
+             * usuario que realiza la operación.
+             */
+            $venta = DB::transaction(function () use ($datos, $pago) {
+
+                $venta = Venta::create([
+
+                    'id_vendedor' => $datos['user_id'],
+
+                    'id_cliente' => $datos['cliente'],
+
+                    'fecha' => $datos['fecha'],
+
+                    'total' => $datos['total'],
+
+                    'pago' => $pago,
+                ]);
+
+                /*
+                 * Crear un detalle por cada producto del carrito.
+                 * DetalleVenta descuenta el stock automáticamente
+                 * al crearse (ver App\Models\DetalleVenta::booted()).
+                 */
+                foreach ($datos['productos'] as $item) {
+                    DetalleVenta::create([
+                        'id_venta' => $venta->id,
+                        'id_producto' => $item['id'],
+                        'cantidad' => $item['cantidad'],
+                        'precio_unitario_momento' => $item['valor_unitario'],
+                    ]);
+                }
+
+                return $venta;
+            });
+
+            /*
+             * Cargar las relaciones necesarias después de crear
+             * la venta.
              */
             $venta->load([
                 'cliente',
@@ -194,26 +229,16 @@ class VentaController extends Controller
             ]);
 
             /*
-             * Devolver directamente la venta creada.
-             *
-             * Esto coincide con CrearVenta.jsx:
-             *
-             * const ventaCreada = datosVenta;
-             *
-             * y:
-             *
-             * ventaCreada.id
+             * Devolver la misma estructura que utilizan
+             * index() y show().
              */
-            return response()->json(
-                $this->formatearVenta($venta),
-                201
-            );
+            return response()->json([
+                'mensaje' => 'Venta creada correctamente.',
+                'venta' => $this->formatearVenta($venta),
+            ], 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
 
-            /*
-             * Error de validación.
-             */
             return response()->json([
                 'mensaje' => 'Error de validación',
                 'errores' => $e->errors()
@@ -221,9 +246,6 @@ class VentaController extends Controller
 
         } catch (\Exception $e) {
 
-            /*
-             * Cualquier otro error del servidor.
-             */
             return response()->json([
                 'mensaje' => 'Error al crear la venta',
                 'error' => $e->getMessage()
@@ -288,6 +310,63 @@ class VentaController extends Controller
 
     /**
      * =========================================================
+     * ACTUALIZAR ESTADO DE PAGO
+     * =========================================================
+     *
+     * PATCH /api/ventas/{id}
+     *
+     * Utilizado por CompraCliente.jsx para confirmar el pago
+     * simulado una vez finalizado el checkout.
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+
+            $venta = Venta::find($id);
+
+            if (!$venta) {
+
+                return response()->json([
+                    'mensaje' => 'Venta no encontrada'
+                ], 404);
+            }
+
+            $datos = $request->validate([
+                'pago' => 'required|boolean',
+            ]);
+
+            $venta->update($datos);
+
+            $venta->load([
+                'cliente',
+                'vendedor',
+                'detalles.producto'
+            ]);
+
+            return response()->json(
+                $this->formatearVenta($venta),
+                200
+            );
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+
+            return response()->json([
+                'mensaje' => 'Error de validación',
+                'errores' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'mensaje' => 'Error al actualizar la venta',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    /**
+     * =========================================================
      * FORMATEAR VENTA
      * =========================================================
      *
@@ -309,7 +388,7 @@ class VentaController extends Controller
 
             /*
              * Primero utilizamos el precio que se guardó
-             * en el momento de la venta.
+             * en el momento de realizar la venta.
              *
              * Si por alguna razón es null, utilizamos
              * el precio actual del producto.
@@ -375,11 +454,17 @@ class VentaController extends Controller
 
             /*
              * ID del usuario que figura como vendedor.
+             *
+             * Lo necesitan InicioVentas y Historialventas
+             * para filtrar las ventas del vendedor.
              */
             'id_vendedor' => $venta->id_vendedor,
 
             /*
              * ID de clientes.id.
+             *
+             * Lo utilizan las vistas para relacionar
+             * la venta con el cliente.
              */
             'id_cliente' => $venta->id_cliente,
 
@@ -407,11 +492,18 @@ class VentaController extends Controller
 
             /*
              * Cliente completo.
+             *
+             * Ejemplo:
+             * venta.cliente.nombres
+             * venta.cliente.apellidos
              */
             'cliente' => $venta->cliente,
 
             /*
              * Vendedor completo.
+             *
+             * Ejemplo:
+             * venta.vendedor.login
              */
             'vendedor' => $venta->vendedor,
 
@@ -422,9 +514,11 @@ class VentaController extends Controller
 
             /*
              * Detalles originales de la venta.
+             *
+             * Esto permite que InformacionVenta.jsx
+             * tenga acceso a información adicional.
              */
             'detalles' => $venta->detalles,
         ];
     }
 }
-

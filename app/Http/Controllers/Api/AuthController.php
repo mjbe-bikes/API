@@ -6,10 +6,56 @@ use App\Http\Controllers\Controller;
 use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
+    /**
+     * =========================================================
+     * REGISTRO DE CLIENTE
+     * =========================================================
+     *
+     * POST /api/register
+     *
+     * Ruta pública (sin sesión) utilizada por Register.jsx para
+     * que un cliente cree su propia cuenta.
+     *
+     * Por seguridad, el rol y el estado NO llegan desde React:
+     * siempre se crea como rol_id = 4 (Cliente) y estado "activo".
+     */
+    public function register(Request $request)
+    {
+        // Validamos los datos y que login/email no estén repetidos.
+        $datos = $request->validate([
+            'login' => 'required|string|max:255|unique:usuarios,login',
+            'email' => 'required|email|max:255|unique:usuarios,email',
+            'password_harsh' => 'required|string',
+        ]);
+
+        // Se generan igual que en UsuarioController::store().
+        $usuario = Usuario::create([
+            'login' => $datos['login'],
+            'email' => $datos['email'],
+            'password_harsh' => $datos['password_harsh'],
+            'rol_id' => 4,
+            'estado' => 'activo',
+            'token_activacion' => Str::random(60),
+            'reset_key' => Str::random(60),
+            'reset_base' => Str::random(60),
+        ]);
+
+        return response()->json([
+            'mensaje' => 'Registro exitoso',
+            'usuario' => [
+                'id' => $usuario->id,
+                'login' => $usuario->login,
+                'email' => $usuario->email,
+                'rol_id' => $usuario->rol_id,
+            ]
+        ], 201);
+    }
+
     /**
      * =========================================================
      * LOGIN

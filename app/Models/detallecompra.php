@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Producto;
 
 class DetalleCompra extends Model
 {
@@ -37,5 +38,14 @@ class DetalleCompra extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Producto::class, 'id_producto');
+    }
+
+    // Al crear un detalle de compra se suma el stock del producto (re-stock).
+    protected static function booted()
+    {
+        static::created(function (DetalleCompra $detalle) {
+            Producto::where('id', $detalle->id_producto)
+                ->increment('cant_producto', $detalle->cantidad);
+        });
     }
 }

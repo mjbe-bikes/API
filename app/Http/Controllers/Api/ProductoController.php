@@ -8,9 +8,7 @@ use Illuminate\Http\Request;
 
 class ProductoController extends Controller
 {
-    // =========================================================
-    // MOSTRAR TODOS LOS PRODUCTOS
-    // =========================================================
+    // Mostrar todos los productos
     public function index()
     {
         try {
@@ -27,19 +25,13 @@ class ProductoController extends Controller
         }
     }
 
-    // =========================================================
-    // CREAR UN PRODUCTO
-    // =========================================================
+    // Crear un producto
     public function store(Request $request)
     {
         try {
-            // Normalizar el estado antes de validar.
-            // Esto permite recibir "Activo", "ACTIVO" o "activo".
-            if ($request->has('estado')) {
-                $request->merge([
-                    'estado' => strtolower(trim($request->estado))
-                ]);
-            }
+            // Normalizar mayúsculas/minúsculas de estado antes de validar
+            // (la BD tiene productos antiguos guardados como "Activo").
+            $request->merge(['estado' => strtolower((string) $request->estado)]);
 
             // Validar los datos recibidos desde React.
             // La tabla productos utiliza id_talla, no id_medida.
@@ -85,9 +77,7 @@ class ProductoController extends Controller
         }
     }
 
-    // =========================================================
-    // MOSTRAR UN PRODUCTO ESPECÍFICO
-    // =========================================================
+    // Mostrar un producto específico
     public function show($id)
     {
         try {
@@ -111,24 +101,15 @@ class ProductoController extends Controller
         }
     }
 
-    // =========================================================
-    // ACTUALIZAR UN PRODUCTO
-    // =========================================================
+    // Actualizar un producto
     public function update(Request $request, $id)
     {
         try {
-            // Normalizar el estado antes de validar.
-            // Ejemplos:
-            // "Activo"   -> "activo"
-            // "ACTIVO"   -> "activo"
-            // "Inactivo" -> "inactivo"
-            if ($request->has('estado')) {
-                $request->merge([
-                    'estado' => strtolower(trim($request->estado))
-                ]);
-            }
+            // Normalizar mayúsculas/minúsculas de estado antes de validar
+            // (la BD tiene productos antiguos guardados como "Activo").
+            $request->merge(['estado' => strtolower((string) $request->estado)]);
 
-            // Validar los datos recibidos desde React.
+            // Validar los datos recibidos.
             $datos = $request->validate([
                 'img_producto' => 'required|string|max:255',
                 'nombre_producto' => 'required|string|max:255',
@@ -144,21 +125,18 @@ class ProductoController extends Controller
                 'estado' => 'required|in:activo,inactivo',
             ]);
 
-            // Buscar el producto por su ID.
+            // Buscar el producto.
             $producto = Producto::find($id);
 
-            // Verificar si el producto existe.
+            // Verificar si existe.
             if (!$producto) {
                 return response()->json([
                     'mensaje' => 'Producto no encontrado'
                 ], 404);
             }
 
-            // Actualizar únicamente los campos validados.
+            // Actualizar los datos.
             $producto->update($datos);
-
-            // Recargar el producto para devolver los datos actualizados.
-            $producto->refresh();
 
             return response()->json([
                 'mensaje' => 'Producto actualizado correctamente',
@@ -167,7 +145,6 @@ class ProductoController extends Controller
 
         } catch (\Illuminate\Validation\ValidationException $e) {
 
-            // Devolver exactamente qué campo produjo el error 422.
             return response()->json([
                 'mensaje' => 'Error de validación',
                 'errores' => $e->errors()
@@ -175,7 +152,6 @@ class ProductoController extends Controller
 
         } catch (\Exception $e) {
 
-            // Error general del servidor.
             return response()->json([
                 'mensaje' => 'Error al actualizar el producto',
                 'error' => $e->getMessage()
@@ -183,15 +159,14 @@ class ProductoController extends Controller
         }
     }
 
-    // =========================================================
-    // ELIMINAR UN PRODUCTO
-    // =========================================================
+    // Eliminar un producto
     public function destroy($id)
     {
         try {
+            // Buscar el producto.
             $producto = Producto::find($id);
 
-            // Verificar si el producto existe.
+            // Verificar si existe.
             if (!$producto) {
                 return response()->json([
                     'mensaje' => 'Producto no encontrado'

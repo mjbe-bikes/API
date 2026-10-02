@@ -18,8 +18,13 @@ class UsuarioController extends Controller
      *
      * GET /api/usuarios?email=correo@ejemplo.com
      *
+     * GET /api/usuarios?login=nombre_usuario
+     *
      * La consulta con email se utiliza para el Login y permite
      * mostrar temporalmente password_harsh para comparar el SHA-256.
+     *
+     * La consulta con login se utiliza para verificar duplicados
+     * (por ejemplo, antes de registrar un usuario nuevo).
      */
     public function index(Request $request)
     {
@@ -40,6 +45,24 @@ class UsuarioController extends Controller
 
                 // Mostrar password_harsh solamente para el Login
                 $usuario->makeVisible('password_harsh');
+
+                return response()->json([
+                    $usuario
+                ], 200);
+            }
+
+            // Consulta por login (por ejemplo, para verificar duplicados)
+            if ($request->has('login')) {
+
+                $usuario = Usuario::where(
+                    'login',
+                    $request->query('login')
+                )->first();
+
+                // Si no existe el usuario
+                if (!$usuario) {
+                    return response()->json([], 200);
+                }
 
                 return response()->json([
                     $usuario

@@ -41,4 +41,13 @@ class DetalleVenta extends Model
             'id'
         );
     }
+
+    // Al crear un detalle de venta se descuenta el stock del producto vendido.
+    protected static function booted()
+    {
+        static::created(function (DetalleVenta $detalle) {
+            Producto::where('id', $detalle->id_producto)
+                ->decrement('cant_producto', $detalle->cantidad);
+        });
+    }
 }

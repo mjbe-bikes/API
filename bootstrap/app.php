@@ -21,6 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: [
             'mjbe_token',
         ]);
+
+        // Esta app es solo API: no existe una pantalla de login web a la
+        // que redirigir. Sin esto, un request sin sesión que no pida
+        // explícitamente JSON (sin header Accept: application/json) hacía
+        // que Laravel intentara redirigir a la ruta "login" y lanzara
+        // RouteNotFoundException (500) en vez de responder 401.
+        $middleware->redirectGuestsTo(fn () => null);
     })
 
     ->withExceptions(function (Exceptions $exceptions): void {

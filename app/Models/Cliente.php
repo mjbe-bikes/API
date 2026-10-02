@@ -26,5 +26,15 @@ class Cliente extends Model
         'direccion',
         'telefono_clnt',
     ];
+
+    // El frontend fue construido sobre el backend Node, que exponía
+    // "id AS id_cliente". Se mantiene ese alias para no tener que
+    // renombrar el campo en cada pantalla que ya lo utiliza.
+    protected $appends = ['id_cliente'];
+
+    public function getIdClienteAttribute()
+    {
+        return $this->id;
+    }
 }
 
