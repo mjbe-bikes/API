@@ -28,6 +28,10 @@ Route::post('/register', [AuthController::class, 'register']);
 // Login: genera el JWT y lo guarda en una cookie HttpOnly.
 Route::post('/login', [AuthController::class, 'login']);
 
+// Consulta de usuario por email utilizada durante el login.
+// No requiere JWT porque todavía no existe una sesión.
+Route::get('/usuarios', [UsuarioController::class, 'index']);
+
 // Ruta temporal para comprobar que React puede comunicarse con Laravel
 Route::get('/prueba', function () {
     return response()->json([
@@ -103,7 +107,6 @@ Route::middleware('auth:api')->group(function () {
 
 
     // Usuarios
-    Route::get('/usuarios', [UsuarioController::class, 'index']);
     Route::get('/usuarios/{id}', [UsuarioController::class, 'show']);
     Route::post('/usuarios', [UsuarioController::class, 'store']);
     Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);
