@@ -132,14 +132,21 @@ if (strtolower($usuario->estado) !== 'activo') {
         // Devolvemos solamente información pública del usuario.
         // El JWT NO aparece en el JSON.
         return response()->json([
-            'mensaje' => 'Inicio de sesión correcto',
-            'usuario' => [
-                'id' => $usuario->id,
-                'login' => $usuario->login,
-                'email' => $usuario->email,
-                'rol_id' => $usuario->rol_id,
-            ]
-        ], 200)->withCookie($cookie);
+    'mensaje' => 'Inicio de sesión correcto',
+
+    // Datos públicos del usuario.
+    'usuario' => [
+        'id' => $usuario->id,
+        'login' => $usuario->login,
+        'email' => $usuario->email,
+        'rol_id' => $usuario->rol_id,
+    ],
+
+    // Enviamos también el JWT para que React
+    // pueda utilizar Authorization: Bearer <token>.
+    'token' => $token,
+
+], 200)->withCookie($cookie);
     }
 
     /**
